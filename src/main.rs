@@ -1,97 +1,84 @@
-use std::{convert::Infallible, fs, io, sync::Arc};
-
-use openssl::ssl::{AlpnError, SslAcceptor, SslFiletype, SslMethod};
-use quinn::ServerConfig;
-use xitca_http::{
-    HttpServiceBuilder, ResponseBody, h1, h2, h3,
-    http::{
-        Request, RequestExt, Response, Version, const_header_value::TEXT_UTF8, header::CONTENT_TYPE,
-    },
-    util::middleware::{Logger, SocketConfig},
+use creme_brulee::{
+    IoError, IoResult,
+    config::{Config, Level},
 };
-use xitca_service::{ServiceExt, fn_service};
+use openssl::ssl::{AlpnError, SslAcceptor, SslAcceptorBuilder, SslFiletype, SslMethod};
+use quinn::ServerConfig;
+use std::{fs, /* io,*/ sync::Arc};
+use tracing::{debug, error, info, trace, warn};
+use tracing_subscriber::{
+    field::MakeExt,
+    fmt::{Subscriber, format::debug_fn},
+};
 
-fn main() -> io::Result<()> {
-    tracing_subscriber::fmt()
-        .with_max_level(tracing::Level::INFO)
+use xitca_web::{
+    App,
+    body::ResponseBody,
+    handler::handler_service,
+    http::{Response, WebResponse},
+    middleware::{compress::Compress, decompress::Decompress},
+    route::get,
+};
+
+mod creme_brulee;
+
+async fn index() -> Result<Response<ResponseBody>, IoError> {
+    let response = WebResponse::builder()
+        .status(200)
+        .body("Hello, World!".into())
+        .unwrap();
+
+    Ok(response)
+}
+
+fn main() -> IoResult<()> {
+    let formatter =
+        debug_fn(|writer, field, value| write!(writer, "{field}: {value:?}")).delimited(",");
+
+    let config = Config::load().unwrap_or_else(|e| panic!("failed to load config: {e}"));
+
+    let level: Level = config.logging().level.clone().into();
+
+    Subscriber::builder()
+        .with_max_level(level.0)
+        .fmt_fields(formatter)
+        .with_ansi(true)
         .init();
 
-    // construct http2 openssl config.
-    let acceptor = h2_config()?;
+    // construct server endpoints, and potentially file server.
+    let app = App::new().at("/", get(handler_service(index)));
 
-    // construct http3 quic server config
-    let config = h3_config()?;
+    // wrap the app with compression middleware.
+    let with_middleware = app.enclosed(Compress).enclosed(Decompress);
 
-    // construct server
-    xitca_server::Builder::new()
-        // bind to a http/1 service.
-        .bind(
-            "http/1",
-            "127.0.0.1:8080",
-            fn_service(handler_h1)
-                .enclosed(Logger::new())
-                .enclosed(HttpServiceBuilder::h1())
-                .enclosed(SocketConfig::new()),
-        )?
-        // bind to a http/2 service.
-        // *. http/1 and http/2 both use tcp listener so it should be using a separate port.
-        .bind(
-            "http/2",
-            "127.0.0.1:8081",
-            fn_service(handler_h2).enclosed(HttpServiceBuilder::h2().openssl(acceptor)),
-        )?
-        // bind to a http/3 service.
-        // *. note the service name must be unique.
-        //
-        // Bind to same service with different bind_xxx API is allowed for reusing one service
-        // on multiple socket addresses and protocols.
-        .bind_h3(
-            "http/3",
-            "127.0.0.1:8081",
-            config,
-            fn_service(handler_h3).enclosed(HttpServiceBuilder::h3()),
-        )?
-        .build()
-        .wait()
+    // bing and start the server.
+    let mut server = with_middleware.serve();
+
+    let bind = config.network().bind.clone();
+    let quic_ip = bind.split(':').next().unwrap();
+    let quic_port = config.network().quic_port.unwrap_or(8081);
+    let quic_bind = format!("{quic_ip}:{quic_port}");
+
+    if config.tls().enable {
+        server = server.bind_openssl(&bind, h2_config()?)?;
+    }
+
+    if config.tls().quic {
+        server = server.bind_h3(&quic_bind, h3_config()?)?;
+    }
+
+    if !config.tls().enable && !config.tls().quic {
+        server = server.bind(&bind)?;
+    }
+
+    server.run().wait()
 }
 
-async fn handler_h1(
-    _: Request<RequestExt<h1::RequestBody>>,
-) -> Result<Response<ResponseBody>, Infallible> {
-    Ok(Response::builder()
-        .header(CONTENT_TYPE, TEXT_UTF8)
-        .body("Hello World from Http/1!".into())
-        .unwrap())
-}
-
-async fn handler_h2(
-    _: Request<RequestExt<h2::RequestBody>>,
-) -> Result<Response<ResponseBody>, Box<dyn std::error::Error>> {
-    let res = Response::builder()
-        .status(200)
-        // possible redirect browser to http/3 service.
-        .header("Alt-Svc", "h3=\":8081\"; ma=86400")
-        .header(CONTENT_TYPE, TEXT_UTF8)
-        .body("Hello World from Http/2!".into())?;
-    Ok(res)
-}
-
-async fn handler_h3(
-    _: Request<RequestExt<h3::RequestBody>>,
-) -> Result<Response<ResponseBody>, Box<dyn std::error::Error>> {
-    Response::builder()
-        .status(200)
-        .version(Version::HTTP_3)
-        .header(CONTENT_TYPE, TEXT_UTF8)
-        .body("Hello World from Http/3!".into())
-        .map_err(Into::into)
-}
-
-fn h2_config() -> io::Result<SslAcceptor> {
+fn h2_config() -> IoResult<SslAcceptorBuilder> {
     // set up openssl and alpn protocol.
     let mut builder = SslAcceptor::mozilla_intermediate(SslMethod::tls())?;
-    builder.set_private_key_file("./.certs/localhost.key", SslFiletype::PEM)?;
-    builder.set_certificate_chain_file("./.certs/localhost.crt")?;
+    builder.set_private_key_file(".certs/localhost.key", SslFiletype::PEM)?;
+    builder.set_certificate_chain_file(".certs/localhost.crt")?;
 
     builder.set_alpn_select_callback(|_, protocols| {
         const H2: &[u8] = b"\x02h2";
@@ -108,12 +95,12 @@ fn h2_config() -> io::Result<SslAcceptor> {
 
     builder.set_alpn_protos(b"\x08http/1.1\x02h2")?;
 
-    Ok(builder.build())
+    Ok(builder)
 }
 
-fn h3_config() -> io::Result<ServerConfig> {
-    let cert = fs::read("./.certs/localhost.crt")?;
-    let key = fs::read("./.certs/localhost.key")?;
+fn h3_config() -> IoResult<ServerConfig> {
+    let cert = fs::read(".certs/localhost.crt")?;
+    let key = fs::read(".certs/localhost.key")?;
 
     let key = rustls_pemfile::pkcs8_private_keys(&mut &*key)
         .next()

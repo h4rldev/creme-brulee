@@ -1,0 +1,12 @@
+[tls]
+cert = "/home/h4rl/.certs/localhost.crt"
+key = "/home/h4rl/.certs/localhost.key"
+quic = true
+enable = true
+
+[network]
+bind = "0.0.0.0:8080"
+quic_port = 8081
+
+[logging]
+level = "INFO"
