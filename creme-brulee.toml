@@ -5,8 +5,8 @@ quic = true
 enable = true
 
 [network]
-bind = "0.0.0.0:8080"
-quic_port = 8081
+bind = "0.0.0.0:443"
+quic_port = 443
 
 [logging]
 level = "INFO"
