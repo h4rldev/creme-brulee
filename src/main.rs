@@ -35,17 +35,6 @@ async fn main() -> IoResult<()> {
         .with_ansi(true)
         .init();
 
-    let cert_path = config
-        .tls()
-        .cert
-        .clone()
-        .unwrap_or_else(|| panic!("invalid cert path"));
-    let key_path = config
-        .tls()
-        .key
-        .clone()
-        .unwrap_or_else(|| panic!("invalid key path"));
-
     let serve_dir = ServeDir::new("static").not_found_service(ServeFile::new("static/404.html"));
 
     let app = Router::new()
@@ -68,6 +57,17 @@ async fn main() -> IoResult<()> {
     let addr = SocketAddr::from((ip, config.network().port));
 
     if config.tls().enable {
+        let cert_path = config
+            .tls()
+            .cert
+            .clone()
+            .unwrap_or_else(|| panic!("invalid cert path"));
+        let key_path = config
+            .tls()
+            .key
+            .clone()
+            .unwrap_or_else(|| panic!("invalid key path"));
+
         let tls_config = RustlsConfig::from_pem_file(cert_path, key_path).await?;
         info!("serving https on {addr}");
         axum_server::bind_rustls(addr, tls_config)
