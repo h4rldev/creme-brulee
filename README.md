@@ -1,6 +1,12 @@
 # creme-brulee
 
-Creme Brulee is a future simple, fast and flexible web server written in Rust with help of [xitca-web](https://github.com/HFQR/xitca-web)
+Creme Brulee is a future simple, fast and flexible web server written in Rust
+
+This project is a work in progress, and is not yet ready for use, and has 3 branches:
+
+- main: The main branch, which just contains information about the project, and will in the future hold the code for the finished project
+- xitca: The xitca branch, which holds code using [xitca-web](https://github.com/HFQR/xitca-web) (is currently unmaintained)
+- axum: The axum branch, which holds code using [axum](https://github.com/tokio-rs/axum) (is currently maintained)
 
 ## Features
 
