@@ -1,12 +1,13 @@
-use axum::{Router, response::Html, routing::get};
+use axum::Router;
 use creme_brulee::{
     IoResult,
     cli::init,
-    config::{Config, Level, string_to_ip},
+    config::{Level, string_to_ip},
 };
-use std::{net::SocketAddr, path::PathBuf};
+use std::net::SocketAddr;
 use tower::ServiceBuilder;
 use tower_http::services::{ServeDir, ServeFile};
+#[allow(unused_imports)]
 use tracing::{debug, error, info, trace, warn};
 use tracing_subscriber::{
     field::MakeExt,
@@ -15,10 +16,6 @@ use tracing_subscriber::{
 
 mod creme_brulee;
 use axum_server::tls_rustls::RustlsConfig;
-
-async fn handler() -> Html<&'static str> {
-    Html("<h1>Hello, world!</h1>")
-}
 
 #[tokio::main]
 async fn main() -> IoResult<()> {
