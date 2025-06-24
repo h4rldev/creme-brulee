@@ -2,7 +2,7 @@ use serde::{Deserialize, Serialize};
 use std::{fmt, fs, path::PathBuf};
 use tracing::Level as TracingLevel;
 
-use super::IoResult;
+use super::{BruleeResult, IoResult};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub struct Level(pub TracingLevel);
@@ -17,23 +17,30 @@ impl Level {
 
 #[derive(Debug, Deserialize, Serialize)]
 pub struct Config {
+    pub site: SiteConfig,
     pub tls: TlsConfig,
     pub network: NetworkConfig,
     pub logging: LoggingConfig,
 }
 
 #[derive(Debug, Deserialize, Serialize)]
+pub struct SiteConfig {
+    pub root: PathBuf,
+    pub error: PathBuf,
+}
+
+#[derive(Debug, Deserialize, Serialize)]
 pub struct TlsConfig {
     pub cert: Option<PathBuf>,
     pub key: Option<PathBuf>,
-    pub quic: bool,
+    /* pub quic: bool, */
     pub enable: bool,
 }
 
 #[derive(Debug, Deserialize, Serialize)]
 pub struct NetworkConfig {
-    pub bind: String, // ip:port
-    pub quic_port: Option<u16>,
+    pub ip: String,
+    pub port: u16,
 }
 
 #[derive(Debug, Deserialize, Serialize)]
@@ -73,7 +80,7 @@ impl From<String> for Level {
 }
 
 impl Config {
-    pub fn load() -> Result<Self, Box<dyn std::error::Error>> {
+    pub fn load() -> BruleeResult<Self> {
         let config = match fs::read_to_string("creme-brulee.toml") {
             Ok(config) => config,
             Err(e) => {
@@ -86,6 +93,21 @@ impl Config {
             }
         };
 
+        let config: Config = toml::from_str(&config)?;
+
+        Ok(config)
+    }
+
+    pub fn load_from_file(path: &PathBuf) -> BruleeResult<Self> {
+        let config = match fs::read_to_string(path) {
+            Ok(config) => config,
+            Err(e) => {
+                if e.kind() == std::io::ErrorKind::NotFound {
+                    return Config::load();
+                }
+                return Err(e.into());
+            }
+        };
         let config: Config = toml::from_str(&config)?;
 
         Ok(config)
@@ -105,15 +127,20 @@ impl Config {
 
     pub fn default() -> Self {
         Self {
+            site: SiteConfig {
+                root: PathBuf::from("static"),
+                error: PathBuf::from("static/404.html"),
+            },
             tls: TlsConfig {
                 cert: None,
                 key: None,
-                quic: false,
+                // quic: false,
                 enable: false,
             },
             network: NetworkConfig {
-                bind: "0.0.0.0:8080".to_string(),
-                quic_port: None,
+                ip: "0.0.0.0".to_string(),
+                port: 8080,
+                // quic_port: None,
             },
             logging: LoggingConfig {
                 level: "INFO".to_string(),
@@ -129,4 +156,19 @@ impl Config {
 
         Ok(())
     }
+}
+
+pub fn string_to_ip(ip: &str) -> Result<[u8; 4], String> {
+    let mut ip_bytes = [0; 4];
+    let ip = ip.split('.').collect::<Vec<&str>>();
+    if ip.len() != 4 {
+        return Err(format!("invalid ip address: {:?}", ip));
+    }
+    for (i, byte) in ip.iter().enumerate() {
+        let byte = byte
+            .parse::<u8>()
+            .map_err(|_| format!("invalid ip address: {:?}", ip))?;
+        ip_bytes[i] = byte;
+    }
+    Ok(ip_bytes)
 }
