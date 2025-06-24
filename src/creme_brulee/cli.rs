@@ -21,11 +21,11 @@ use tracing::info;
 pub struct Cli {
     #[clap(short, long, default_value = "creme-brulee.toml")]
     pub config: PathBuf,
-    #[clap(short, long, default_value = "true", help = "Toggle TLS")]
+    #[clap(short, long, help = "Toggle TLS")]
     pub tls: bool,
-    #[clap(short, long, default_value = "8080", help = "Port to listen on")]
+    #[clap(short, long, help = "Port to listen on")]
     pub port: Option<u16>,
-    #[clap(short, long, default_value = "0.0.0.0")]
+    #[clap(short, long, help = "IP to listen on")]
     pub ip: Option<String>,
 }
 
