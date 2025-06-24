@@ -35,7 +35,21 @@ async fn main() -> IoResult<()> {
         .with_ansi(true)
         .init();
 
-    let serve_dir = ServeDir::new("static").not_found_service(ServeFile::new("static/404.html"));
+    let root = config
+        .site()
+        .root
+        .clone()
+        .unwrap_or_else(|| panic!("invalid root path"));
+    let error_page = config
+        .site()
+        .error
+        .clone()
+        .unwrap_or_else(|| panic!("invalid error page"));
+
+    debug!("root: {root:?}");
+    debug!("error page: {error_page:?}");
+
+    let serve_dir = ServeDir::new(root).not_found_service(ServeFile::new(error_page));
 
     let app = Router::new()
         .fallback_service(serve_dir)
