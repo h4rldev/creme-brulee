@@ -1,3 +1,4 @@
+pub(crate) mod admin;
 pub(crate) mod api;
 pub(crate) mod cli;
 pub(crate) mod config;

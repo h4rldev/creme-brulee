@@ -15,7 +15,7 @@ impl Level {
     pub const ERROR: Self = Self(tracing::Level::ERROR);
 }
 
-#[derive(Debug, Deserialize, Serialize)]
+#[derive(Debug, Deserialize, Serialize, Clone)]
 pub struct Config {
     pub site: SiteConfig,
     pub tls: TlsConfig,
@@ -23,27 +23,35 @@ pub struct Config {
     pub logging: LoggingConfig,
 }
 
-#[derive(Debug, Deserialize, Serialize)]
+#[derive(Debug, Deserialize, Serialize, Clone)]
 pub struct SiteConfig {
     pub root: Option<PathBuf>,
+    pub admin: Option<PathBuf>,
     pub error: Option<PathBuf>,
 }
 
-#[derive(Debug, Deserialize, Serialize)]
+#[derive(Debug, Deserialize, Serialize, Clone)]
+pub struct AdminConfig {
+    pub jwt_secret: String,
+    pub cookie_key: String,
+}
+
+#[derive(Debug, Deserialize, Serialize, Clone)]
 pub struct TlsConfig {
     pub cert: Option<PathBuf>,
     pub key: Option<PathBuf>,
-    /* pub quic: bool, */
+    /* pub quic: bool, */ // Uncomment when QUIC support is added
     pub enable: bool,
 }
 
-#[derive(Debug, Deserialize, Serialize)]
+#[derive(Debug, Deserialize, Serialize, Clone)]
 pub struct NetworkConfig {
     pub ip: String,
     pub port: u16,
+    // Add quic support when quic is implemented
 }
 
-#[derive(Debug, Deserialize, Serialize)]
+#[derive(Debug, Deserialize, Serialize, Clone)]
 pub struct LoggingConfig {
     pub level: String,
 }
@@ -133,6 +141,7 @@ impl Config {
         Self {
             site: SiteConfig {
                 root: Some(PathBuf::from("static")),
+                admin: Some(PathBuf::from("static/admin")),
                 error: Some(PathBuf::from("static/404.html")),
             },
             tls: TlsConfig {

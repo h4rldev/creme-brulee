@@ -1,6 +1,6 @@
 [site]
-root = "static"
-error = "static/404.html"
+root = ""
+error = ""
 
 [tls]
 cert = ".certs/cert1.pem"
