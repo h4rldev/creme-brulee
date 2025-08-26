@@ -9,6 +9,7 @@ with pkgs;
       pkg-config
       curlHTTP3
       certbot
+      sqlite
     ];
 
     shellHook = ''

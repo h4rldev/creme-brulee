@@ -2,3 +2,5 @@
 .direnv
 .certs
 /assets
+.env
+creme-brulee.db

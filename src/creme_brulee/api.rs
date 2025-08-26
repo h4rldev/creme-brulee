@@ -43,8 +43,21 @@ pub(crate) fn creme_brulee_api_response<T: Serialize>(
     (status, Json(message)).into_response()
 }
 
+/*
+* .route("/posts", get(blog::get_published_posts))
+        .route("/posts/{slug}", get(blog::get_published_post_by_slug))
+        .route("/posts/send/{id}", get(stats::track_post_view));
+*/
+
 pub async fn get_api_index() -> impl IntoResponse {
-    let current_endpoints = ["/cv", "/server-info", "/uptime"];
+    let current_endpoints = [
+        "/cv",
+        "/server-info",
+        "/uptime",
+        "/posts",
+        "/posts/slug",
+        "/posts/send/69",
+    ];
 
     let wrap_endpoints_with_hyperlinks = current_endpoints
         .iter()

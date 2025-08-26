@@ -9,10 +9,7 @@ use sea_orm::{ActiveModelTrait, ColumnTrait, EntityTrait, QueryFilter, QueryOrde
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
-use crate::creme_brulee::{
-    admin,
-    api::{creme_brulee_api_err, creme_brulee_api_response},
-};
+use crate::creme_brulee::api::{creme_brulee_api_err, creme_brulee_api_response};
 
 use super::{
     database::entities::{BlogPostModel, BlogPosts},
@@ -70,7 +67,7 @@ pub async fn get_published_posts(State(state): State<AppState>) -> impl IntoResp
             created_at: post.created_at.to_rfc3339(),
             updated_at: post.updated_at.to_rfc3339(),
         })
-        .collect::<Vec<_>>();
+        .collect::<Vec<BlogPostResponse>>();
 
     creme_brulee_api_response(StatusCode::OK, responses)
 }
@@ -92,18 +89,16 @@ pub async fn get_published_post_by_slug(
         }
     };
 
-    let post = post.unwrap_or_else(|| {
-        tracing::warn!("Blog post with slug '{}' not found", slug);
-        admin::database::blog_posts::Model {
-            id: Uuid::new_v4(),
-            title: "Not Found".to_string(),
-            slug: slug.clone(),
-            content: "The requested blog post does not exist.".to_string(),
-            published: false,
-            created_at: Utc::now(),
-            updated_at: Utc::now(),
+    let post = match post {
+        Some(post) => post,
+        None => {
+            tracing::warn!("Blog post with slug '{}' not found", slug);
+            return creme_brulee_api_err(
+                StatusCode::NOT_FOUND,
+                &format!("Blog post with slug '{}' not found", &slug),
+            );
         }
-    });
+    };
 
     creme_brulee_api_response(
         StatusCode::OK,
@@ -160,23 +155,20 @@ pub async fn get_post_by_slug(
     {
         Ok(post) => post,
         Err(_) => {
-            tracing::error!("Failed to fetch blog post by slug: {}", &slug);
+            tracing::warn!("Failed to fetch blog post by slug: {}", &slug);
             None
         }
     };
 
-    let post = post.unwrap_or_else(|| {
-        tracing::warn!("Blog post with slug '{}' not found", &slug);
-        admin::database::blog_posts::Model {
-            id: Uuid::new_v4(),
-            title: "Not Found".to_string(),
-            slug: slug.clone(),
-            content: "The requested blog post does not exist.".to_string(),
-            published: false,
-            created_at: Utc::now(),
-            updated_at: Utc::now(),
+    let post = match post {
+        Some(post) => post,
+        None => {
+            return creme_brulee_api_err(
+                StatusCode::NOT_FOUND,
+                &format!("Blog post with slug '{}' not found", &slug),
+            );
         }
-    });
+    };
 
     creme_brulee_api_response(
         StatusCode::OK,

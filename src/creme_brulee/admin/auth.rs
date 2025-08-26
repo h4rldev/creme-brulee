@@ -12,6 +12,7 @@ use axum::{
 };
 use axum_extra::extract::cookie::{Cookie, PrivateCookieJar, SameSite};
 use chrono::{Duration, Utc};
+use dotenvy::dotenv;
 use jsonwebtoken::{DecodingKey, EncodingKey, Header, Validation, decode, encode};
 use once_cell::sync::Lazy;
 use sea_orm::{ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, QueryFilter, Set};
@@ -120,6 +121,8 @@ pub async fn initial_setup(
     Json(payload): axum::Json<InitialSetupPayload>,
 ) -> impl IntoResponse {
     // Check if any admin user exists
+    dotenv().ok();
+
     let admin_exists = match Users::find()
         .filter(super::database::users::Column::IsAdmin.eq(true))
         .one(&state.db)

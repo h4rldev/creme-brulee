@@ -1,7 +1,7 @@
 use super::config::Config;
 use clap::Parser;
 
-use std::path::PathBuf;
+use std::{path::PathBuf, process::exit};
 use tracing::info;
 
 #[derive(Parser, Debug)]
@@ -27,6 +27,8 @@ pub struct Cli {
     pub port: Option<u16>,
     #[clap(short, long, help = "IP to listen on")]
     pub ip: Option<String>,
+    #[clap(short, long, help = "Generate a COOKIE_SECRET")]
+    pub generate_cookie_secret: bool,
 }
 
 pub fn init() -> Config {
@@ -46,6 +48,20 @@ pub fn init() -> Config {
     if let Some(ip) = cli.ip {
         config.network.ip = ip;
         info!("ip: {}", config.network.ip);
+    }
+
+    if cli.generate_cookie_secret {
+        let cookie = axum_extra::extract::cookie::Key::generate();
+        let master = cookie.master();
+        let master = master
+            .iter()
+            .map(|c| c.to_ascii_lowercase().to_string())
+            .collect::<String>();
+        println!(
+            "COOKIE_SECRET: \"{}\" (Don't share this with anyone, and don't forget to set it in your .env file)",
+            master
+        );
+        exit(0);
     }
 
     config

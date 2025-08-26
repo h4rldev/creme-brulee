@@ -103,11 +103,8 @@ async fn main() -> IoResult<()> {
 
     let public_blog_routes = Router::new()
         .route("/posts", get(blog::get_published_posts))
-        .route("/posts/:slug", get(blog::get_published_post_by_slug))
-        .layer(middleware::from_fn_with_state(
-            state.clone(),
-            stats::track_visit,
-        ));
+        .route("/posts/{slug}", get(blog::get_published_post_by_slug))
+        .route("/posts/send/{id}", get(stats::track_post_view));
 
     let api_routes = Router::new()
         .route("/", get(get_api_index))
@@ -123,11 +120,11 @@ async fn main() -> IoResult<()> {
 
     let protected_routes = Router::new()
         .route("/blog/posts", post(blog::create_post))
-        .route("/blog/posts", get(blog::get_all_posts))
-        .route("/blog/posts/:id", put(blog::update_post))
-        .route("/blog/posts/:id", delete(blog::delete_post))
-        .route("/blog/posts/:slug", get(blog::get_post_by_slug))
-        .route("/stats/posts/:id", get(stats::get_post_stats))
+        .route("/blog/posts/{id}", put(blog::update_post))
+        .route("/blog/posts/{id}", delete(blog::delete_post))
+        .route("/stats/posts/{id}", get(stats::get_post_stats))
+        .route("/blog/posts/get", get(blog::get_all_posts))
+        .route("/blog/posts/get/{slug}", get(blog::get_post_by_slug))
         .route("/stats/visits", get(stats::get_visit_stats))
         .route_layer(from_fn_with_state(state.clone(), auth::require_admin));
 
@@ -140,6 +137,10 @@ async fn main() -> IoResult<()> {
         .fallback_service(serve_public)
         .nest("/api", api_routes)
         .nest("/admin", admin_routes)
+        .layer(middleware::from_fn_with_state(
+            state.clone(),
+            stats::track_visit,
+        ))
         .with_state(AppState::new().await)
         //
         // This adds compression and decompression to the request and response
