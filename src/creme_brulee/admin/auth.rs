@@ -25,8 +25,10 @@ use super::{
     state::AppState,
 };
 
-static JWT_SECRET: Lazy<String> =
-    Lazy::new(|| std::env::var("JWT_SECRET").expect("JWT_SECRET must be set"));
+static JWT_SECRET: Lazy<String> = Lazy::new(|| {
+    dotenv().ok();
+    std::env::var("JWT_SECRET").expect("JWT_SECRET must be set")
+});
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct Claims {
@@ -49,7 +51,14 @@ pub struct InitialSetupPayload {
     setup_key: String,
 }
 
-#[axum::debug_handler]
+/* POST /admin/auth/login
+ *
+ * {
+ *   "username": "",
+ *   "password": ""
+ * }
+ */
+
 pub async fn login(
     State(state): State<AppState>,
     Json(payload): Json<LoginPayload>,
@@ -116,6 +125,15 @@ pub async fn login(
     (StatusCode::OK, jar.add(cookie)).into_response()
 }
 
+/* POST /admin/auth/setup
+ *
+ * {
+ *   "username": "",
+ *   "password": "",
+ *   "setup_key": ""
+ * }
+ */
+
 pub async fn initial_setup(
     State(state): State<AppState>,
     Json(payload): axum::Json<InitialSetupPayload>,
@@ -168,6 +186,8 @@ pub async fn initial_setup(
     }
 }
 
+/* Helper function to verify if the user is an admin */
+
 async fn verify_admin(jar: &PrivateCookieJar, db: &DatabaseConnection) -> impl IntoResponse {
     let token = match jar.get("auth_token") {
         Some(token) => token.value().to_string(),
@@ -214,6 +234,8 @@ async fn verify_admin(jar: &PrivateCookieJar, db: &DatabaseConnection) -> impl I
     creme_brulee_api_response(StatusCode::OK, "Admin verified")
 }
 
+/* Middleware to check if the user is an admin */
+
 pub async fn require_admin(
     State(state): State<AppState>,
     request: Request<Body>,
@@ -229,6 +251,8 @@ pub async fn require_admin(
     Ok(next.run(request).await)
 }
 
+/* GET /admin/auth/logout */
+
 pub async fn logout(State(state): State<AppState>, request: Request<Body>) -> impl IntoResponse {
     let jar = request
         .extensions()
@@ -236,5 +260,7 @@ pub async fn logout(State(state): State<AppState>, request: Request<Body>) -> im
         .cloned()
         .unwrap_or_else(|| PrivateCookieJar::new(state.key.clone()));
 
-    (StatusCode::OK, jar.remove(Cookie::from("auth_token")))
+    let stat = jar.remove(Cookie::from("auth_token"));
+
+    (StatusCode::OK, stat).into_response()
 }

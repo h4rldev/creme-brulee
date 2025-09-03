@@ -12,6 +12,7 @@ use sea_orm::{
     ActiveModelTrait, ColumnTrait, EntityTrait, PaginatorTrait, QueryFilter, QuerySelect, Set,
 };
 use serde::Serialize;
+use tracing::info;
 use uuid::Uuid;
 
 use super::{
@@ -35,6 +36,8 @@ pub struct VisitStatsResponse {
     recent_visits: u64,
 }
 
+/* Middleware to track site visits */
+
 pub async fn track_visit(
     ConnectInfo(remote_addr): ConnectInfo<SocketAddr>,
     State(state): State<AppState>,
@@ -49,22 +52,76 @@ pub async fn track_visit(
         .unwrap_or("unknown")
         .to_string();
 
-    // Get the real IP address, considering forwarded headers
     let visitor_ip = remote_addr.ip().to_canonical().to_string();
 
-    let visit = VisitStatModel {
-        id: Set(0), // Auto-increment
-        path: Set(path),
-        visitor_ip: Set(visitor_ip),
-        user_agent: Set(user_agent),
-        timestamp: Set(Utc::now()),
+    let stat = match VisitStats::find()
+        .filter(super::database::visit_stats::Column::VisitorIp.eq(&visitor_ip))
+        .one(&state.db)
+        .await
+    {
+        Ok(stat) => stat,
+        Err(_) => {
+            info!("Visitor IP not found in database, adding new record");
+            None
+        }
     };
 
-    // Don't block the request if stats tracking fails
-    let _ = visit.insert(&state.db).await;
+    match stat {
+        Some(stat) => {
+            // Only update the database if the visitor IP visited the site within the last 24 hours
+            let mut updated_stat: VisitStatModel = stat.clone().into();
+
+            let recent_visit = VisitStats::find()
+                .filter(super::database::visit_stats::Column::VisitorIp.eq(&visitor_ip))
+                .filter(super::database::visit_stats::Column::UserAgent.eq(&user_agent))
+                .filter(
+                    super::database::visit_stats::Column::Timestamp
+                        .gt(Utc::now() - chrono::Duration::hours(24)),
+                )
+                .one(&state.db)
+                .await
+                .unwrap_or_default();
+
+            if recent_visit.is_none() {
+                updated_stat.visitor_ip = Set(visitor_ip.clone());
+                updated_stat.user_agent = Set(user_agent.clone());
+                updated_stat.timestamp = Set(Utc::now());
+                updated_stat.path = Set(path);
+
+                match updated_stat.insert(&state.db).await {
+                    Ok(_) => {}
+                    Err(e) => {
+                        tracing::error!("Failed to insert visit stat: {}", e);
+                    }
+                }
+            }
+        }
+
+        None => {
+            let new_stat = VisitStatModel {
+                id: Set(0), // Auto-increment
+                path: Set(path),
+                visitor_ip: Set(visitor_ip),
+                user_agent: Set(user_agent),
+                timestamp: Set(Utc::now()),
+            };
+
+            match new_stat.insert(&state.db).await {
+                Ok(_) => {}
+                Err(e) => {
+                    tracing::error!("Failed to insert visit stat: {}", e);
+                }
+            }
+        }
+    }
 
     Ok(next.run(req).await)
 }
+
+/* GET /api/posts/send/{id}
+ *
+ * Tracks a post view and returns the post stats
+ */
 
 pub async fn track_post_view(
     State(state): State<AppState>,

@@ -21,7 +21,13 @@ use std::{
 };
 use tower::{ServiceBuilder, service_fn};
 use tower_cookies::CookieManagerLayer;
-use tower_http::services::{ServeDir, ServeFile};
+use tower_http::{
+    compression::{
+        Predicate,
+        predicate::{NotForContentType, SizeAbove},
+    },
+    services::{ServeDir, ServeFile},
+};
 #[allow(unused_imports)]
 use tracing::{debug, error, info, trace, warn};
 use tracing_subscriber::{
@@ -92,21 +98,41 @@ async fn main() -> IoResult<()> {
         warn!("Error page path is empty or failed to unwrap, Using hardcoded fallback error page.");
     }
 
+    let admin_root = config.site().admin_root.clone().unwrap_or_else(|| {
+        error!("Invalid admin root path");
+        PathBuf::new()
+    });
+
+    if !admin_root.exists() {
+        warn!("Admin root path is empty or failed to unwrap, Using hardcoded fallback admin root.");
+    }
+
     debug!("root: {root:?}");
     debug!("error page: {error_page:?}");
+    debug!("admin root: {admin_root:?}");
 
     let state = AppState::new().await;
 
+    let compression_predicate = SizeAbove::new(256)
+        .and(NotForContentType::IMAGES)
+        .and(NotForContentType::new("application/json"));
+
     let serve_public = ServeDir::new(root)
-        .not_found_service(ServeFile::new(&error_page))
+        .not_found_service(ServeFile::new(error_page.clone()))
+        .fallback(service_fn(render_404));
+
+    let serve_admin = ServeDir::new(admin_root)
+        .not_found_service(ServeFile::new(error_page.clone()))
         .fallback(service_fn(render_404));
 
     let public_blog_routes = Router::new()
+        .layer(tower_http::normalize_path::NormalizePathLayer::trim_trailing_slash())
         .route("/posts", get(blog::get_published_posts))
         .route("/posts/{slug}", get(blog::get_published_post_by_slug))
         .route("/posts/send/{id}", get(stats::track_post_view));
 
     let api_routes = Router::new()
+        .layer(tower_http::normalize_path::NormalizePathLayer::trim_trailing_slash())
         .route("/", get(get_api_index))
         .route("/cv/{language}", get(get_cv))
         .route("/server-info", get(get_server_info))
@@ -114,11 +140,13 @@ async fn main() -> IoResult<()> {
         .merge(public_blog_routes);
 
     let auth_routes = Router::new()
+        .layer(tower_http::normalize_path::NormalizePathLayer::trim_trailing_slash())
         .route("/login", post(auth::login))
-        .route("/logout", post(auth::logout))
+        .route("/logout", get(auth::logout))
         .route("/setup", post(auth::initial_setup));
 
     let protected_routes = Router::new()
+        .layer(tower_http::normalize_path::NormalizePathLayer::trim_trailing_slash())
         .route("/blog/posts", post(blog::create_post))
         .route("/blog/posts/{id}", put(blog::update_post))
         .route("/blog/posts/{id}", delete(blog::delete_post))
@@ -129,11 +157,26 @@ async fn main() -> IoResult<()> {
         .route_layer(from_fn_with_state(state.clone(), auth::require_admin));
 
     let admin_routes = Router::new()
-        .nest("/admin/auth", auth_routes)
-        .nest("/admin", protected_routes)
-        .layer(CookieManagerLayer::new());
+        .layer(CookieManagerLayer::new())
+        .layer(tower_http::normalize_path::NormalizePathLayer::trim_trailing_slash())
+        .fallback_service(serve_admin)
+        .nest("/auth", auth_routes)
+        .nest("/api", protected_routes);
 
     let app = Router::new()
+        .layer(
+            ServiceBuilder::new()
+                .layer(tower_http::decompression::RequestDecompressionLayer::new())
+                .layer(
+                    tower_http::compression::CompressionLayer::new()
+                        .zstd(true)
+                        .gzip(true)
+                        .no_br()
+                        .no_deflate()
+                        .compress_when(compression_predicate),
+                ),
+        )
+        .layer(tower_http::normalize_path::NormalizePathLayer::trim_trailing_slash())
         .fallback_service(serve_public)
         .nest("/api", api_routes)
         .nest("/admin", admin_routes)
@@ -141,20 +184,11 @@ async fn main() -> IoResult<()> {
             state.clone(),
             stats::track_visit,
         ))
-        .with_state(AppState::new().await)
-        //
-        // This adds compression and decompression to the request and response
-        // body streams, don't remove it!
-        //
-        .layer(
-            ServiceBuilder::new()
-                .layer(tower_http::decompression::RequestDecompressionLayer::new())
-                .layer(
-                    tower_http::compression::CompressionLayer::new()
-                        .br(true)
-                        .zstd(true),
-                ),
-        );
+        .with_state(state);
+    //
+    // This adds compression and decompression to the request and response
+    // body streams, don't remove it!
+    //
 
     let ip = string_to_ip(&config.network().ip).unwrap_or_else(|e| panic!("invalid ip: {e}"));
     let addr = SocketAddr::from((ip, config.network().port));

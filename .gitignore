@@ -1,6 +1,6 @@
-/target
-.direnv
 .certs
-/assets
+.direnv
 .env
+.envrc
+target
 creme-brulee.db

@@ -9,6 +9,8 @@ pub struct AppState {
     pub key: Key,
 }
 
+/* State for the admin endpoints */
+
 impl AppState {
     pub async fn new() -> Self {
         dotenv().ok();

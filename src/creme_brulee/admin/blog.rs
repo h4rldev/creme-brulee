@@ -41,7 +41,10 @@ pub struct UpdatePostPayload {
     published: Option<bool>,
 }
 
-// Public endpoints
+/* Public endpoints */
+
+/* GET /api/blog/posts */
+
 pub async fn get_published_posts(State(state): State<AppState>) -> impl IntoResponse {
     let posts = match BlogPosts::find()
         .filter(super::database::blog_posts::Column::Published.eq(true))
@@ -71,6 +74,8 @@ pub async fn get_published_posts(State(state): State<AppState>) -> impl IntoResp
 
     creme_brulee_api_response(StatusCode::OK, responses)
 }
+
+/* GET /api/blog/posts/{slug} */
 
 pub async fn get_published_post_by_slug(
     State(state): State<AppState>,
@@ -114,7 +119,10 @@ pub async fn get_published_post_by_slug(
     )
 }
 
-// Admin endpoints
+/* Admin endpoints */
+
+/* GET /admin/blog/posts */
+
 pub async fn get_all_posts(State(state): State<AppState>) -> impl IntoResponse {
     let posts = match BlogPosts::find()
         .order_by_desc(super::database::blog_posts::Column::CreatedAt)
@@ -143,6 +151,8 @@ pub async fn get_all_posts(State(state): State<AppState>) -> impl IntoResponse {
 
     creme_brulee_api_response(StatusCode::OK, responses);
 }
+
+/* GET /admin/blog/posts/{slug} */
 
 pub async fn get_post_by_slug(
     State(state): State<AppState>,
@@ -184,6 +194,15 @@ pub async fn get_post_by_slug(
     )
 }
 
+/* POST /admin/blog/posts
+ *
+ * {
+ *   "title": "",
+ *   "content": "",
+ *   "published": true || false
+ * }
+ */
+
 pub async fn create_post(
     State(state): State<AppState>,
     Json(payload): Json<CreatePostPayload>,
@@ -224,6 +243,15 @@ pub async fn create_post(
         },
     )
 }
+
+/* PUT /admin/blog/posts/{id}
+ *
+ * {
+ *   "title": "",
+ *   "content": "",
+ *   "published": true || false
+ * }
+ */
 
 pub async fn update_post(
     State(state): State<AppState>,
@@ -280,6 +308,8 @@ pub async fn update_post(
     )
 }
 
+/* DELETE /admin/blog/posts/{id} */
+
 pub async fn delete_post(State(state): State<AppState>, Path(id): Path<Uuid>) -> impl IntoResponse {
     let post = match BlogPosts::find_by_id(id).one(&state.db).await {
         Ok(post) => post,
@@ -312,6 +342,8 @@ pub async fn delete_post(State(state): State<AppState>, Path(id): Path<Uuid>) ->
     }
 }
 
+/* Helper function to slugify a string */
+
 fn slugify(title: &str) -> String {
     title
         .to_lowercase()
@@ -321,6 +353,8 @@ fn slugify(title: &str) -> String {
         .collect::<String>()
         .replace("--", "-")
 }
+
+/* Tests */
 
 #[cfg(test)]
 mod tests {
