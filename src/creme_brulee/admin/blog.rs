@@ -11,10 +11,12 @@ use uuid::Uuid;
 
 use crate::creme_brulee::api::{creme_brulee_api_err, creme_brulee_api_response};
 
-use super::{
-    database::entities::{BlogPostModel, BlogPosts},
-    state::AppState,
+use crate::creme_brulee::database::{
+    blog_posts,
+    entities::{BlogPostModel, BlogPosts},
 };
+
+use super::state::AppState;
 
 #[derive(Debug, Deserialize)]
 pub struct CreatePostPayload {
@@ -24,7 +26,7 @@ pub struct CreatePostPayload {
 }
 
 #[derive(Debug, Serialize)]
-pub struct BlogPostResponse {
+struct BlogPostResponse {
     id: Uuid,
     title: String,
     slug: String,
@@ -47,8 +49,8 @@ pub struct UpdatePostPayload {
 
 pub async fn get_published_posts(State(state): State<AppState>) -> impl IntoResponse {
     let posts = match BlogPosts::find()
-        .filter(super::database::blog_posts::Column::Published.eq(true))
-        .order_by_desc(super::database::blog_posts::Column::CreatedAt)
+        .filter(blog_posts::Column::Published.eq(true))
+        .order_by_desc(blog_posts::Column::CreatedAt)
         .all(&state.db)
         .await
     {
@@ -82,8 +84,8 @@ pub async fn get_published_post_by_slug(
     Path(slug): Path<String>,
 ) -> impl IntoResponse {
     let post = match BlogPosts::find()
-        .filter(super::database::blog_posts::Column::Slug.eq(&slug))
-        .filter(super::database::blog_posts::Column::Published.eq(true))
+        .filter(blog_posts::Column::Slug.eq(&slug))
+        .filter(blog_posts::Column::Published.eq(true))
         .one(&state.db)
         .await
     {
@@ -125,7 +127,7 @@ pub async fn get_published_post_by_slug(
 
 pub async fn get_all_posts(State(state): State<AppState>) -> impl IntoResponse {
     let posts = match BlogPosts::find()
-        .order_by_desc(super::database::blog_posts::Column::CreatedAt)
+        .order_by_desc(blog_posts::Column::CreatedAt)
         .all(&state.db)
         .await
     {
@@ -159,7 +161,7 @@ pub async fn get_post_by_slug(
     Path(slug): Path<String>,
 ) -> impl IntoResponse {
     let post = match BlogPosts::find()
-        .filter(super::database::blog_posts::Column::Slug.eq(slug.clone()))
+        .filter(blog_posts::Column::Slug.eq(slug.clone()))
         .one(&state.db)
         .await
     {

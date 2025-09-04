@@ -1,41 +1,54 @@
-# Running Migrator CLI
+# Creme Brulee
 
-- Generate a new migration file
-    ```sh
-    cargo run -- generate MIGRATION_NAME
-    ```
-- Apply all pending migrations
-    ```sh
-    cargo run
-    ```
-    ```sh
-    cargo run -- up
-    ```
-- Apply first 10 pending migrations
-    ```sh
-    cargo run -- up -n 10
-    ```
-- Rollback last applied migrations
-    ```sh
-    cargo run -- down
-    ```
-- Rollback last 10 applied migrations
-    ```sh
-    cargo run -- down -n 10
-    ```
-- Drop all tables from the database, then reapply all migrations
-    ```sh
-    cargo run -- fresh
-    ```
-- Rollback all applied migrations, then reapply all migrations
-    ```sh
-    cargo run -- refresh
-    ```
-- Rollback all applied migrations
-    ```sh
-    cargo run -- reset
-    ```
-- Check the status of all migrations
-    ```sh
-    cargo run -- status
-    ```
+This branch <https://github.com/h4rldev/creme-brulee/tree/portfolio-blog> is my personal portfolio blog built with Rust, [Axum](https://github.com/tokio-rs/axum) and [SeaORM](https://github.com/SeaQL/sea-orm).
+
+## Features
+
+- Markdown blog with editing, and drafts
+- Markdown guestbook
+- Admin dashboard
+- Authentication
+- Database migrations
+- Rudimentary statistics for blog posts to see if people read them
+- Rudimentary site visit stastistics, to catch bad actors
+
+## Installation
+
+TBD
+
+## Building
+
+- Initialize an empty sqlite database
+  
+  ```sh
+  sqlite3 mydatabase.db "VACUUM;"
+  ```
+
+- Make a `.env` file, example is in `.env.example`
+
+- Build the project
+
+  ```sh
+  cargo build --release
+  ```
+
+After building, the binary will be in `target/release/creme-brulee`.
+Be sure that the database file is in current directory from where you run the binary.
+
+## Running
+
+Run the binary once to create creme-brulee.toml, which contains some configuration for the server.
+
+```sh
+./target/release/creme-brulee
+```
+
+The server will start on port 8080 by default.
+
+
+## License
+
+This project is licensed under the BSD 3-Clause License - see the [LICENSE](LICENSE) file for details.
+
+
+

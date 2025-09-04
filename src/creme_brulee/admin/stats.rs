@@ -15,11 +15,14 @@ use serde::Serialize;
 use tracing::info;
 use uuid::Uuid;
 
-use super::{
-    database::entities::{PostStatModel, PostStats, VisitStatModel, VisitStats},
-    state::AppState,
+use super::state::AppState;
+use crate::creme_brulee::{
+    api::{creme_brulee_api_err, creme_brulee_api_response},
+    database::{
+        entities::{PostStatModel, PostStats, VisitStatModel, VisitStats},
+        post_stats, visit_stats,
+    },
 };
-use crate::creme_brulee::api::{creme_brulee_api_err, creme_brulee_api_response};
 
 #[derive(Serialize)]
 pub struct PostStatsResponse {
@@ -55,7 +58,7 @@ pub async fn track_visit(
     let visitor_ip = remote_addr.ip().to_canonical().to_string();
 
     let stat = match VisitStats::find()
-        .filter(super::database::visit_stats::Column::VisitorIp.eq(&visitor_ip))
+        .filter(visit_stats::Column::VisitorIp.eq(&visitor_ip))
         .one(&state.db)
         .await
     {
@@ -72,12 +75,9 @@ pub async fn track_visit(
             let mut updated_stat: VisitStatModel = stat.clone().into();
 
             let recent_visit = VisitStats::find()
-                .filter(super::database::visit_stats::Column::VisitorIp.eq(&visitor_ip))
-                .filter(super::database::visit_stats::Column::UserAgent.eq(&user_agent))
-                .filter(
-                    super::database::visit_stats::Column::Timestamp
-                        .gt(Utc::now() - chrono::Duration::hours(24)),
-                )
+                .filter(visit_stats::Column::VisitorIp.eq(&visitor_ip))
+                .filter(visit_stats::Column::UserAgent.eq(&user_agent))
+                .filter(visit_stats::Column::Timestamp.gt(Utc::now() - chrono::Duration::hours(24)))
                 .one(&state.db)
                 .await
                 .unwrap_or_default();
@@ -131,7 +131,7 @@ pub async fn track_post_view(
     let visitor_ip = remote_addr.ip().to_canonical().to_string();
 
     let stat = match PostStats::find()
-        .filter(super::database::post_stats::Column::PostId.eq(post_id))
+        .filter(post_stats::Column::PostId.eq(post_id))
         .one(&state.db)
         .await
     {
@@ -151,14 +151,9 @@ pub async fn track_post_view(
 
             // Check if this IP has viewed before in the last 24 hours
             let recent_visit = match VisitStats::find()
-                .filter(
-                    super::database::visit_stats::Column::Path.eq(format!("/posts/{}", post_id)),
-                )
-                .filter(super::database::visit_stats::Column::VisitorIp.eq(visitor_ip))
-                .filter(
-                    super::database::visit_stats::Column::Timestamp
-                        .gt(Utc::now() - chrono::Duration::hours(24)),
-                )
+                .filter(visit_stats::Column::Path.eq(format!("/posts/{}", post_id)))
+                .filter(visit_stats::Column::VisitorIp.eq(visitor_ip))
+                .filter(visit_stats::Column::Timestamp.gt(Utc::now() - chrono::Duration::hours(24)))
                 .one(&state.db)
                 .await
             {
@@ -217,7 +212,7 @@ pub async fn get_post_stats(
     Path(post_id): Path<Uuid>,
 ) -> impl IntoResponse {
     let stat = match PostStats::find()
-        .filter(super::database::post_stats::Column::PostId.eq(post_id))
+        .filter(post_stats::Column::PostId.eq(post_id))
         .one(&state.db)
         .await
     {
@@ -257,7 +252,7 @@ pub async fn get_visit_stats(State(state): State<AppState>) -> impl IntoResponse
 
     let unique_visitors = match VisitStats::find()
         .select_only()
-        .column(super::database::visit_stats::Column::VisitorIp)
+        .column(visit_stats::Column::VisitorIp)
         .distinct()
         .count(&state.db)
         .await
@@ -272,10 +267,7 @@ pub async fn get_visit_stats(State(state): State<AppState>) -> impl IntoResponse
     };
 
     let recent_visits = match VisitStats::find()
-        .filter(
-            super::database::visit_stats::Column::Timestamp
-                .gt(Utc::now() - chrono::Duration::hours(24)),
-        )
+        .filter(visit_stats::Column::Timestamp.gt(Utc::now() - chrono::Duration::hours(24)))
         .count(&state.db)
         .await
     {

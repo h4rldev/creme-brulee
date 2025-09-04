@@ -2,6 +2,7 @@ pub(crate) mod admin;
 pub(crate) mod api;
 pub(crate) mod cli;
 pub(crate) mod config;
+pub(crate) mod database;
 
 pub(crate) type IoResult<T> = std::io::Result<T>;
 pub(crate) type BruleeError = Box<dyn std::error::Error>;

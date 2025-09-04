@@ -1,23 +1,32 @@
-use super::BruleeResult;
-use crate::APP_START;
+use super::{BruleeResult, admin::state::AppState};
+use crate::{
+    APP_START,
+    creme_brulee::database::{
+        entities::{GuestbookModel, Guestbooks},
+        guestbook,
+    },
+};
 use axum::{
     Json,
     body::Body,
-    extract::Path,
+    extract::{Path, State},
     http::{
         HeaderMap, HeaderValue, Response, StatusCode,
         header::{CONTENT_DISPOSITION, CONTENT_LENGTH, CONTENT_TYPE},
     },
     response::{Html, IntoResponse},
 };
+use chrono::Utc;
 use humantime::format_duration;
 use mime_guess::mime::APPLICATION_PDF;
-use serde::Serialize;
+use sea_orm::{ActiveModelTrait, EntityTrait, QueryOrder, Set};
+use serde::{Deserialize, Serialize};
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 use tokio::{
     fs::{File, read},
     io::AsyncReadExt,
 };
+use uuid::Uuid;
 
 #[derive(Serialize)]
 pub(crate) struct CremeBruleeApiResponse {
@@ -249,4 +258,82 @@ pub async fn get_uptime() -> impl IntoResponse {
             system_uptime: format_duration(system_uptime).to_string(),
         },
     )
+}
+
+#[derive(Serialize)]
+struct GuestbookResponse {
+    id: Uuid,
+    title: String,
+    content: String,
+    author: String,
+    created_at: String,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct GuestbookEntry {
+    title: String,
+    content: String,
+    author: String,
+}
+
+pub async fn create_guestbook_entry(
+    State(state): State<AppState>,
+    Json(payload): Json<GuestbookEntry>,
+) -> impl IntoResponse {
+    let entry = GuestbookModel {
+        id: Set(Uuid::new_v4()),
+        title: Set(payload.title),
+        content: Set(payload.content),
+        author: Set(payload.author),
+        created_at: Set(Utc::now()),
+    };
+
+    let entry = match entry.insert(&state.db).await {
+        Ok(entry) => entry,
+        Err(e) => {
+            tracing::error!("Failed to create guestbook entry: {}", e);
+            return creme_brulee_api_err(
+                StatusCode::INTERNAL_SERVER_ERROR,
+                "Failed to create guestbook entry",
+            );
+        }
+    };
+
+    creme_brulee_api_response(
+        StatusCode::CREATED,
+        GuestbookResponse {
+            id: entry.id,
+            title: entry.title,
+            content: entry.content,
+            author: entry.author,
+            created_at: entry.created_at.to_rfc3339(),
+        },
+    )
+}
+
+pub async fn get_guestbook_entries(State(state): State<AppState>) -> impl IntoResponse {
+    let entries = match Guestbooks::find()
+        .order_by_desc(guestbook::Column::CreatedAt)
+        .all(&state.db)
+        .await
+    {
+        Ok(entries) => entries,
+        Err(_) => {
+            tracing::error!("Failed to fetch guestbook entries");
+            vec![]
+        }
+    };
+
+    let responses = entries
+        .into_iter()
+        .map(|entry| GuestbookResponse {
+            id: entry.id,
+            title: entry.title,
+            content: entry.content,
+            author: entry.author,
+            created_at: entry.created_at.to_rfc3339(),
+        })
+        .collect::<Vec<GuestbookResponse>>();
+
+    creme_brulee_api_response(StatusCode::OK, responses)
 }

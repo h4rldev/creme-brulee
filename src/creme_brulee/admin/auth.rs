@@ -19,9 +19,13 @@ use sea_orm::{ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, Qu
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
+use crate::creme_brulee::database::{
+    entities::{UserModel, Users},
+    users,
+};
+
 use super::{
     super::api::{creme_brulee_api_err, creme_brulee_api_response},
-    database::entities::{UserModel, Users},
     state::AppState,
 };
 
@@ -66,7 +70,7 @@ pub async fn login(
     let jar = PrivateCookieJar::new(state.key.clone());
 
     let user = match Users::find()
-        .filter(super::database::users::Column::Username.eq(payload.username))
+        .filter(users::Column::Username.eq(payload.username))
         .one(&state.db)
         .await
     {
@@ -142,7 +146,7 @@ pub async fn initial_setup(
     dotenv().ok();
 
     let admin_exists = match Users::find()
-        .filter(super::database::users::Column::IsAdmin.eq(true))
+        .filter(users::Column::IsAdmin.eq(true))
         .one(&state.db)
         .await
     {

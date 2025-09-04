@@ -10,7 +10,10 @@ use axum::{
 use creme_brulee::{
     IoResult,
     admin::{auth, blog, stats},
-    api::{get_api_index, get_cv, get_server_info, get_uptime},
+    api::{
+        create_guestbook_entry, get_api_index, get_cv, get_guestbook_entries, get_server_info,
+        get_uptime,
+    },
     cli::init,
     config::{Level, string_to_ip},
 };
@@ -137,6 +140,8 @@ async fn main() -> IoResult<()> {
         .route("/cv/{language}", get(get_cv))
         .route("/server-info", get(get_server_info))
         .route("/uptime", get(get_uptime))
+        .route("/guestbook", get(get_guestbook_entries))
+        .route("/guestbook", post(create_guestbook_entry))
         .merge(public_blog_routes);
 
     let auth_routes = Router::new()

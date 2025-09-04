@@ -9,13 +9,13 @@ impl MigrationTrait for Migration {
         manager
             .create_table(
                 Table::create()
-                    .table(PostStats::Table)
+                    .table(Guestbook::Table)
                     .if_not_exists()
-                    .col(pk_auto(PostStats::Id))
-                    .col(uuid(PostStats::PostId))
-                    .col(integer(PostStats::ViewCount))
-                    .col(integer(PostStats::UniqueVisitors))
-                    .col(date_time(PostStats::LastViewed))
+                    .col(pk_auto(Guestbook::Id))
+                    .col(string(Guestbook::Title))
+                    .col(string(Guestbook::Content))
+                    .col(string(Guestbook::Author))
+                    .col(date_time(Guestbook::CreatedAt))
                     .to_owned(),
             )
             .await
@@ -23,17 +23,17 @@ impl MigrationTrait for Migration {
 
     async fn down(&self, manager: &SchemaManager) -> Result<(), DbErr> {
         manager
-            .drop_table(Table::drop().table(PostStats::Table).to_owned())
+            .drop_table(Table::drop().table(Guestbook::Table).to_owned())
             .await
     }
 }
 
 #[derive(DeriveIden)]
-enum PostStats {
+enum Guestbook {
     Table,
     Id,
-    PostId,
-    ViewCount,
-    UniqueVisitors,
-    LastViewed,
+    Title,
+    Content,
+    Author,
+    CreatedAt,
 }
