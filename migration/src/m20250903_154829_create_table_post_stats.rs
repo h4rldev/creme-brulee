@@ -1,4 +1,4 @@
-use sea_orm_migration::{prelude::*, schema::*};
+use sea_orm_migration::{prelude::*, schema::*, sea_orm::sqlx::types::chrono::Utc};
 
 #[derive(DeriveMigrationName)]
 pub struct Migration;
@@ -12,10 +12,14 @@ impl MigrationTrait for Migration {
                     .table(PostStats::Table)
                     .if_not_exists()
                     .col(pk_auto(PostStats::Id))
-                    .col(uuid(PostStats::PostId))
-                    .col(integer(PostStats::ViewCount))
-                    .col(integer(PostStats::UniqueVisitors))
-                    .col(date_time(PostStats::LastViewed))
+                    .col(string(PostStats::PostId).not_null())
+                    .col(integer(PostStats::ViewCount).not_null().default(0))
+                    .col(integer(PostStats::UniqueVisitors).not_null().default(0))
+                    .col(
+                        date_time(PostStats::LastViewed)
+                            .not_null()
+                            .default(Utc::now()),
+                    )
                     .to_owned(),
             )
             .await

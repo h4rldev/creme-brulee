@@ -1,4 +1,4 @@
-use sea_orm_migration::{prelude::*, schema::*};
+use sea_orm_migration::{prelude::*, schema::*, sea_orm::sqlx::types::chrono::Utc};
 
 #[derive(DeriveMigrationName)]
 pub struct Migration;
@@ -11,15 +11,29 @@ impl MigrationTrait for Migration {
                 Table::create()
                     .table(Users::Table)
                     .if_not_exists()
-                    .col(pk_uuid(Users::Id))
-                    .col(string(Users::Username))
-                    .col(string(Users::PasswordHash))
-                    .col(boolean(Users::IsAdmin))
-                    .col(date_time(Users::CreatedAt))
-                    .col(date_time(Users::UpdatedAt))
+                    .col(pk_auto(Users::Id))
+                    .col(string_uniq(Users::UserId).not_null())
+                    .col(string_uniq(Users::Username).not_null())
+                    .col(string(Users::PasswordHash).not_null())
+                    .col(boolean(Users::IsAdmin).not_null())
+                    .col(string(Users::CreatedAt).not_null().default(Utc::now()))
+                    .col(string(Users::UpdatedAt).not_null().default(Utc::now()))
                     .to_owned(),
             )
-            .await
+            .await?;
+
+        manager
+            .create_index(
+                Index::create()
+                    .name("idx_users_username")
+                    .table(Users::Table)
+                    .col(Users::Username)
+                    .unique()
+                    .to_owned(),
+            )
+            .await?;
+
+        Ok(())
     }
 
     async fn down(&self, manager: &SchemaManager) -> Result<(), DbErr> {
@@ -33,6 +47,7 @@ impl MigrationTrait for Migration {
 enum Users {
     Table,
     Id,
+    UserId,
     Username,
     PasswordHash,
     IsAdmin,

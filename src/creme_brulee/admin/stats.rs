@@ -26,7 +26,7 @@ use crate::creme_brulee::{
 
 #[derive(Serialize)]
 pub struct PostStatsResponse {
-    post_id: Uuid,
+    post_id: String,
     view_count: i32,
     unique_visitors: i32,
     last_viewed: String,
@@ -89,7 +89,9 @@ pub async fn track_visit(
                 updated_stat.path = Set(path);
 
                 match updated_stat.insert(&state.db).await {
-                    Ok(_) => {}
+                    Ok(stat) => {
+                        tracing::info!("Visit stat inserted: {:?}", stat);
+                    }
                     Err(e) => {
                         tracing::error!("Failed to insert visit stat: {}", e);
                     }
@@ -107,9 +109,11 @@ pub async fn track_visit(
             };
 
             match new_stat.insert(&state.db).await {
-                Ok(_) => {}
+                Ok(stat) => {
+                    tracing::info!("Unique visit stat inserted: {:?}", stat);
+                }
                 Err(e) => {
-                    tracing::error!("Failed to insert visit stat: {}", e);
+                    tracing::error!("Failed to insert unique visit stat: {}", e);
                 }
             }
         }
@@ -170,7 +174,7 @@ pub async fn track_post_view(
                 updated_stat.unique_visitors = Set(stat.unique_visitors + 1);
             }
 
-            updated_stat.last_viewed = Set(Utc::now());
+            updated_stat.last_viewed = Set(Utc::now().to_rfc3339());
             match updated_stat.update(&state.db).await {
                 Ok(_) => {}
                 Err(e) => {
@@ -185,10 +189,10 @@ pub async fn track_post_view(
         None => {
             let new_stat = PostStatModel {
                 id: Set(0), // Auto-increment
-                post_id: Set(post_id),
+                post_id: Set(post_id.to_string()),
                 view_count: Set(1),
                 unique_visitors: Set(1),
-                last_viewed: Set(Utc::now()),
+                last_viewed: Set(Utc::now().to_rfc3339()),
             };
 
             match new_stat.insert(&state.db).await {
@@ -234,7 +238,7 @@ pub async fn get_post_stats(
             post_id: stat.post_id,
             view_count: stat.view_count,
             unique_visitors: stat.unique_visitors,
-            last_viewed: stat.last_viewed.to_rfc3339(),
+            last_viewed: stat.last_viewed,
         },
     )
 }

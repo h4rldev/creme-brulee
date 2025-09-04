@@ -1,19 +1,18 @@
-use chrono::{DateTime, Utc};
 use sea_orm::entity::prelude::*;
 use serde::{Deserialize, Serialize};
-use uuid::Uuid;
 
 #[derive(Clone, Debug, PartialEq, DeriveEntityModel, Serialize, Deserialize)]
 #[sea_orm(table_name = "blog_posts")]
 pub struct Model {
-    #[sea_orm(primary_key)]
-    pub id: Uuid,
+    #[sea_orm(primary_key, auto_increment = true)]
+    pub id: i32,
+    pub post_id: String,
     pub title: String,
     pub slug: String,
     pub content: String,
     pub published: bool,
-    pub created_at: DateTime<Utc>,
-    pub updated_at: DateTime<Utc>,
+    pub created_at: String,
+    pub updated_at: String,
 }
 
 #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]

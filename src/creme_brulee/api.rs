@@ -16,7 +16,6 @@ use axum::{
     },
     response::{Html, IntoResponse},
 };
-use chrono::Utc;
 use humantime::format_duration;
 use mime_guess::mime::APPLICATION_PDF;
 use sea_orm::{ActiveModelTrait, EntityTrait, QueryOrder, Set};
@@ -26,7 +25,7 @@ use tokio::{
     fs::{File, read},
     io::AsyncReadExt,
 };
-use uuid::Uuid;
+use tracing::info;
 
 #[derive(Serialize)]
 pub(crate) struct CremeBruleeApiResponse {
@@ -61,6 +60,7 @@ pub async fn get_api_index() -> impl IntoResponse {
         "/posts",
         "/posts/slug",
         "/posts/send/69",
+        "/guestbook",
     ];
 
     let wrap_endpoints_with_hyperlinks = current_endpoints
@@ -262,30 +262,40 @@ pub async fn get_uptime() -> impl IntoResponse {
 
 #[derive(Serialize)]
 struct GuestbookResponse {
-    id: Uuid,
+    id: i32,
     title: String,
     content: String,
     author: String,
     created_at: String,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, Clone)]
 pub struct GuestbookEntry {
     title: String,
     content: String,
     author: String,
 }
 
+/* POST /api/guestbook
+ *
+ * {
+ *   "title": "",
+ *   "content": "",
+ *   "author": ""
+ * }
+ */
+
 pub async fn create_guestbook_entry(
     State(state): State<AppState>,
     Json(payload): Json<GuestbookEntry>,
 ) -> impl IntoResponse {
+    info!("payload: {:?}", payload);
+
     let entry = GuestbookModel {
-        id: Set(Uuid::new_v4()),
         title: Set(payload.title),
         content: Set(payload.content),
         author: Set(payload.author),
-        created_at: Set(Utc::now()),
+        ..Default::default()
     };
 
     let entry = match entry.insert(&state.db).await {
@@ -294,7 +304,7 @@ pub async fn create_guestbook_entry(
             tracing::error!("Failed to create guestbook entry: {}", e);
             return creme_brulee_api_err(
                 StatusCode::INTERNAL_SERVER_ERROR,
-                "Failed to create guestbook entry",
+                &format!("Failed to create guestbook entry: {}", e),
             );
         }
     };
@@ -306,7 +316,7 @@ pub async fn create_guestbook_entry(
             title: entry.title,
             content: entry.content,
             author: entry.author,
-            created_at: entry.created_at.to_rfc3339(),
+            created_at: entry.created_at,
         },
     )
 }
@@ -331,7 +341,7 @@ pub async fn get_guestbook_entries(State(state): State<AppState>) -> impl IntoRe
             title: entry.title,
             content: entry.content,
             author: entry.author,
-            created_at: entry.created_at.to_rfc3339(),
+            created_at: entry.created_at,
         })
         .collect::<Vec<GuestbookResponse>>();
 

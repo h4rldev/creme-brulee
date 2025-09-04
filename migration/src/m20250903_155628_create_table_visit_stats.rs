@@ -1,4 +1,4 @@
-use sea_orm_migration::{prelude::*, schema::*};
+use sea_orm_migration::{prelude::*, schema::*, sea_orm::sqlx::types::chrono::Utc};
 
 #[derive(DeriveMigrationName)]
 pub struct Migration;
@@ -12,10 +12,14 @@ impl MigrationTrait for Migration {
                     .table(VisitStats::Table)
                     .if_not_exists()
                     .col(pk_auto(VisitStats::Id))
-                    .col(string(VisitStats::Path))
-                    .col(string(VisitStats::VisitorIp))
-                    .col(string(VisitStats::UserAgent))
-                    .col(date_time(VisitStats::Timestamp))
+                    .col(string(VisitStats::Path).not_null())
+                    .col(string(VisitStats::VisitorIp).not_null())
+                    .col(string(VisitStats::UserAgent).not_null())
+                    .col(
+                        string(VisitStats::Timestamp)
+                            .not_null()
+                            .default(Utc::now().to_rfc3339()),
+                    )
                     .to_owned(),
             )
             .await?;

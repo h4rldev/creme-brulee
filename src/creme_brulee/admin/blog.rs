@@ -27,7 +27,7 @@ pub struct CreatePostPayload {
 
 #[derive(Debug, Serialize)]
 struct BlogPostResponse {
-    id: Uuid,
+    id: String,
     title: String,
     slug: String,
     content: String,
@@ -64,13 +64,13 @@ pub async fn get_published_posts(State(state): State<AppState>) -> impl IntoResp
     let responses = posts
         .into_iter()
         .map(|post| BlogPostResponse {
-            id: post.id,
+            id: post.post_id,
             title: post.title,
             slug: post.slug,
             content: post.content,
             published: post.published,
-            created_at: post.created_at.to_rfc3339(),
-            updated_at: post.updated_at.to_rfc3339(),
+            created_at: post.created_at,
+            updated_at: post.updated_at,
         })
         .collect::<Vec<BlogPostResponse>>();
 
@@ -110,13 +110,13 @@ pub async fn get_published_post_by_slug(
     creme_brulee_api_response(
         StatusCode::OK,
         BlogPostResponse {
-            id: post.id,
+            id: post.post_id,
             title: post.title,
             slug: post.slug,
             content: post.content,
             published: post.published,
-            created_at: post.created_at.to_rfc3339(),
-            updated_at: post.updated_at.to_rfc3339(),
+            created_at: post.created_at,
+            updated_at: post.updated_at,
         },
     )
 }
@@ -141,13 +141,13 @@ pub async fn get_all_posts(State(state): State<AppState>) -> impl IntoResponse {
     let responses = posts
         .into_iter()
         .map(|post| BlogPostResponse {
-            id: post.id,
+            id: post.post_id,
             title: post.title,
             slug: post.slug,
             content: post.content,
             published: post.published,
-            created_at: post.created_at.to_rfc3339(),
-            updated_at: post.updated_at.to_rfc3339(),
+            created_at: post.created_at,
+            updated_at: post.updated_at,
         })
         .collect::<Vec<BlogPostResponse>>();
 
@@ -185,13 +185,13 @@ pub async fn get_post_by_slug(
     creme_brulee_api_response(
         StatusCode::OK,
         BlogPostResponse {
-            id: post.id,
+            id: post.post_id,
             title: post.title,
             slug: post.slug,
             content: post.content,
             published: post.published,
-            created_at: post.created_at.to_rfc3339(),
-            updated_at: post.updated_at.to_rfc3339(),
+            created_at: post.created_at,
+            updated_at: post.updated_at,
         },
     )
 }
@@ -212,13 +212,14 @@ pub async fn create_post(
     let slug = slugify(&payload.title);
 
     let post = BlogPostModel {
-        id: Set(Uuid::new_v4()),
+        id: Set(0), // Auto-increment
+        post_id: Set(Uuid::new_v4().to_string()),
         title: Set(payload.title),
         slug: Set(slug),
         content: Set(payload.content),
         published: Set(payload.published),
-        created_at: Set(Utc::now()),
-        updated_at: Set(Utc::now()),
+        created_at: Set(Utc::now().to_rfc3339()),
+        updated_at: Set(Utc::now().to_rfc3339()),
     };
 
     let post = match post.insert(&state.db).await {
@@ -235,13 +236,13 @@ pub async fn create_post(
     creme_brulee_api_response(
         StatusCode::CREATED,
         BlogPostResponse {
-            id: post.id,
+            id: post.post_id,
             title: post.title,
             slug: post.slug,
             content: post.content,
             published: post.published,
-            created_at: post.created_at.to_rfc3339(),
-            updated_at: post.updated_at.to_rfc3339(),
+            created_at: post.created_at,
+            updated_at: post.updated_at,
         },
     )
 }
@@ -260,7 +261,11 @@ pub async fn update_post(
     Path(id): Path<Uuid>,
     Json(payload): Json<UpdatePostPayload>,
 ) -> impl IntoResponse {
-    let post = match BlogPosts::find_by_id(id).one(&state.db).await {
+    let post = match BlogPosts::find()
+        .filter(blog_posts::Column::PostId.eq(id.to_string()))
+        .one(&state.db)
+        .await
+    {
         Ok(post) => post,
         Err(_) => {
             tracing::error!("Failed to fetch blog post by id: {}", id);
@@ -283,7 +288,7 @@ pub async fn update_post(
         post.published = Set(published);
     }
 
-    post.updated_at = Set(Utc::now());
+    post.updated_at = Set(Utc::now().to_rfc3339());
 
     let post = match post.update(&state.db).await {
         Ok(post) => post,
@@ -299,13 +304,13 @@ pub async fn update_post(
     creme_brulee_api_response(
         StatusCode::OK,
         BlogPostResponse {
-            id: post.id,
+            id: post.post_id,
             title: post.title,
             slug: post.slug,
             content: post.content,
             published: post.published,
-            created_at: post.created_at.to_rfc3339(),
-            updated_at: post.updated_at.to_rfc3339(),
+            created_at: post.created_at,
+            updated_at: post.updated_at,
         },
     )
 }
@@ -313,7 +318,11 @@ pub async fn update_post(
 /* DELETE /admin/blog/posts/{id} */
 
 pub async fn delete_post(State(state): State<AppState>, Path(id): Path<Uuid>) -> impl IntoResponse {
-    let post = match BlogPosts::find_by_id(id).one(&state.db).await {
+    let post = match BlogPosts::find()
+        .filter(blog_posts::Column::PostId.eq(id.to_string()))
+        .one(&state.db)
+        .await
+    {
         Ok(post) => post,
         Err(_) => {
             tracing::error!("Failed to fetch blog post by id: {}", id);

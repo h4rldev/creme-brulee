@@ -176,12 +176,13 @@ pub async fn initial_setup(
     };
 
     let user = UserModel {
-        id: Set(Uuid::new_v4()),
+        id: Set(0), // Auto-increment
+        user_id: Set(Uuid::new_v4().to_string()),
         username: Set(payload.username),
         password_hash: Set(password_hash),
         is_admin: Set(true),
-        created_at: Set(Utc::now()),
-        updated_at: Set(Utc::now()),
+        created_at: Set(Utc::now().to_rfc3339()),
+        updated_at: Set(Utc::now().to_rfc3339()),
     };
 
     match user.insert(&state.db).await {
@@ -207,17 +208,18 @@ async fn verify_admin(jar: &PrivateCookieJar, db: &DatabaseConnection) -> impl I
         Err(_) => return creme_brulee_api_err(StatusCode::UNAUTHORIZED, "Invalid token"),
     };
 
-    let user_id = match Uuid::parse_str(&token_data.claims.sub) {
-        Ok(user_id) => user_id,
-        Err(_) => return creme_brulee_api_err(StatusCode::UNAUTHORIZED, "Invalid token"),
-    };
+    let user_id = token_data.claims.sub;
 
     // A little extra wall for security, checking both claims and database
     if !token_data.claims.admin {
         return creme_brulee_api_err(StatusCode::FORBIDDEN, "User is not an admin");
     }
 
-    let user = match Users::find_by_id(user_id).one(db).await {
+    let user = match Users::find()
+        .filter(users::Column::UserId.eq(user_id.to_string()))
+        .one(db)
+        .await
+    {
         Ok(user) => user,
         Err(_) => {
             return creme_brulee_api_err(StatusCode::INTERNAL_SERVER_ERROR, "Failed to fetch user");
