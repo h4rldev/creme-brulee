@@ -20,17 +20,23 @@ TBD
 
 - Initialize an empty sqlite database
   
-  ```sh
-  sqlite3 mydatabase.db "VACUUM;"
-  ```
+```sh
+sqlite3 mydatabase.db "VACUUM;"
+```
 
 - Make a `.env` file, example is in `.env.example`
 
+- Run DB migrations
+
+```sh
+cargo run -p migration -- up
+```
+
 - Build the project
 
-  ```sh
-  cargo build --release
-  ```
+```sh
+cargo build --release
+```
 
 After building, the binary will be in `target/release/creme-brulee`.
 Be sure that the database file is in current directory from where you run the binary.
