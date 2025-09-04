@@ -1,6 +1,6 @@
 # Creme Brulee
 
-This branch <https://github.com/h4rldev/creme-brulee/tree/portfolio-blog> is my personal portfolio blog built with Rust, [Axum](https://github.com/tokio-rs/axum) and [SeaORM](https://github.com/SeaQL/sea-orm).
+This branch [portfolio-blog](https://github.com/h4rldev/creme-brulee/tree/portfolio-blog) is my personal portfolio blog built with Rust, [Axum](https://github.com/tokio-rs/axum) and [SeaORM](https://github.com/SeaQL/sea-orm).
 
 ## Features
 
